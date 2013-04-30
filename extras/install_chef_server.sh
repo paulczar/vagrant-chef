@@ -1,0 +1,69 @@
+#!/bin/bash -x
+
+if [ ! -f /home/vagrant/.chef/knife.db ]
+then
+  echo "Preparing to install chef client..."
+  mkdir -p /vagrant/packages
+  cd /vagrant/packages
+  echo downloading chef-server debian package.  this may take some time...
+  wget -nc --quiet https://opscode-omnitruck-release.s3.amazonaws.com/ubuntu/12.04/x86_64/chef-server_11.0.6-1.ubuntu.12.04_amd64.deb
+  dpkg -i chef-server*.deb
+  chef-server-ctl reconfigure
+
+  mkdir -p /home/vagrant/.chef
+  sudo cp /etc/chef-server/admin.pem /home/vagrant/.chef/
+  sudo cp /etc/chef-server/chef-validator.pem /home/vagrant/.chef/
+  mkdir -p /vagrant/.chef
+  cp /home/vagrant/.chef/* /vagrant/.chef/
+
+cat<<KNIFE > /home/vagrant/.chef/knife.rb
+log_level                :info
+log_location             STDOUT
+node_name                'admin'
+client_key               '/home/vagrant/.chef/admin.pem'
+validation_client_name   'chef-validator'
+validation_key           '.chef/chef-validator.pem'
+chef_server_url          'https://chef'
+cache_type               'BasicFile'
+cache_options( :path => '/home/vagrant/.chef/checksums' )
+KNIFE
+
+  chown vagrant. /vagrant/.chef/*
+  chown vagrant. /home/vagrant/.chef/*
+
+  echo "Chef server installed!!\nNow let us configure up the cookbooks."
+#  cd /vagrant/chef-cookbooks
+#  knife cookbook upload -o cookbooks --all
+#  knife role from file roles/*.rb
+#  knife environment from file /vagrant/extras/environment_vagrant.json
+#  knife node from file /vagrant/extras/allinone_node.json
+#  knife node from file /vagrant/extras/single_controller_node.json
+#  knife node from file /vagrant/extras/single_compute_node.json
+
+  echo "Install some useful Gems"
+  /opt/chef-server/embedded/bin/gem install berkshelf
+
+else 
+  echo "chef server already installed!"
+fi
+
+echo "checking for cookbooks, roles, environments"
+if [ -d /vagrant/chef-cookbooks/cookbooks ]
+then
+  knife cookbook upload -o /vagrant/chef-cookbooks/cookbooks --all
+fi
+
+if [ -d /vagrant/chef-cookbooks/roles ]
+then
+  knife role from file /vagrant/chef-cookbooks/roles/*.rb
+fi
+
+if [ -d /vagrant/chef-cookbooks/environments ]
+then
+  knife environment from file /vagrant/chef-cookbooks/environemnts/*.rb
+fi
+
+if [ -d /vagrant/chef-cookbooks/nodes ]
+then
+  knife node from file /vagrant/chef-cookbooks/nodes/*.rb
+fi
